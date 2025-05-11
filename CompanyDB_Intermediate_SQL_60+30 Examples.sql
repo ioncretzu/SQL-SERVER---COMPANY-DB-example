@@ -2411,3 +2411,226 @@ WITH DeptCount AS (
 )
 SELECT * FROM DeptCount;
 GO
+
+
+
+-- ==================================================
+-- SQL Server Interview Examples - CompanyDB
+-- Based on DataCamp Beginner & Intermediate Questions
+-- ==================================================
+
+-- 1. Basic SELECT and WHERE
+SELECT * FROM Employees WHERE DepartmentID = 1;
+GO
+
+-- 2. Aggregate: COUNT, AVG, MAX
+SELECT 
+    COUNT(*) AS TotalEmployees,
+    AVG(BaseSalary) AS AvgSalary,
+    MAX(Bonus) AS MaxBonus
+FROM Salaries;
+GO
+
+-- 3. GROUP BY with HAVING
+SELECT DepartmentID, COUNT(*) AS NumEmployees
+FROM Employees
+GROUP BY DepartmentID
+HAVING COUNT(*) > 1;
+GO
+
+-- 4. INNER JOIN: Employee name and department
+SELECT E.Name, D.DepartmentName
+FROM Employees E
+JOIN Departments D ON E.DepartmentID = D.DepartmentID;
+GO
+
+-- 5. LEFT JOIN: Include employees with no department
+SELECT E.Name, D.DepartmentName
+FROM Employees E
+LEFT JOIN Departments D ON E.DepartmentID = D.DepartmentID;
+GO
+
+-- 6. Subquery: Employees earning more than average
+SELECT Name
+FROM Employees E
+JOIN Salaries S ON E.EmployeeID = S.EmployeeID
+WHERE S.BaseSalary > (
+    SELECT AVG(BaseSalary) FROM Salaries
+);
+GO
+
+-- 7. EXISTS: Employees with bonuses
+SELECT Name
+FROM Employees E
+WHERE EXISTS (
+    SELECT 1 FROM Salaries S WHERE S.EmployeeID = E.EmployeeID AND S.Bonus > 0
+);
+GO
+
+-- 8. CTE: Count of employees per department
+WITH EmpCount AS (
+    SELECT DepartmentID, COUNT(*) AS Total
+    FROM Employees
+    GROUP BY DepartmentID
+)
+SELECT * FROM EmpCount;
+GO
+
+-- 9. Window Function: RANK by salary
+SELECT E.Name, S.BaseSalary,
+    RANK() OVER (ORDER BY S.BaseSalary DESC) AS SalaryRank
+FROM Employees E
+JOIN Salaries S ON E.EmployeeID = S.EmployeeID;
+GO
+
+-- 10. BETWEEN and IN
+SELECT Name FROM Employees
+WHERE DepartmentID BETWEEN 1 AND 3
+AND Name IN ('Alice Johnson', 'Bob Smith');
+GO
+
+-- 11. Stored Procedure: Return employee info by name
+CREATE PROCEDURE GetEmployeeByName
+    @EmpName NVARCHAR(100)
+AS
+BEGIN
+    SELECT * FROM Employees WHERE Name = @EmpName;
+END;
+GO
+
+-- 12. View: Employees with full salary info
+CREATE VIEW vw_EmployeeSalaries AS
+SELECT E.Name, S.BaseSalary, S.Bonus
+FROM Employees E
+JOIN Salaries S ON E.EmployeeID = S.EmployeeID;
+GO
+
+-- 13. Transaction example
+BEGIN TRANSACTION;
+UPDATE Salaries SET Bonus = Bonus + 1000 WHERE Bonus < 3000;
+ROLLBACK; -- Replace with COMMIT to apply
+GO
+
+-- 14. Create Index for faster salary lookup
+CREATE NONCLUSTERED INDEX IX_Salaries_QuickSearch
+ON Salaries (BaseSalary);
+GO
+
+-- ==================================================
+-- Intermediate & Advanced SQL Server Examples - CompanyDB
+-- ==================================================
+
+-- ========================
+-- Intermediate Examples
+-- ========================
+
+-- 1. CASE Statement: Classify salary levels
+SELECT 
+    E.Name,
+    S.BaseSalary,
+    CASE 
+        WHEN S.BaseSalary >= 60000 THEN 'High'
+        WHEN S.BaseSalary >= 50000 THEN 'Medium'
+        ELSE 'Low'
+    END AS SalaryLevel
+FROM Employees E
+JOIN Salaries S ON E.EmployeeID = S.EmployeeID;
+GO
+
+-- 2. Derived Table: Find department averages and list above-average employees
+SELECT E.Name, S.BaseSalary, DeptStats.AvgSalary
+FROM Employees E
+JOIN Salaries S ON E.EmployeeID = S.EmployeeID
+JOIN (
+    SELECT DepartmentID, AVG(BaseSalary) AS AvgSalary
+    FROM Employees E
+    JOIN Salaries S ON E.EmployeeID = S.EmployeeID
+    GROUP BY DepartmentID
+) AS DeptStats ON E.DepartmentID = DeptStats.DepartmentID
+WHERE S.BaseSalary > DeptStats.AvgSalary;
+GO
+
+-- 3. ISNULL and COALESCE: Handle null bonuses
+SELECT 
+    E.Name,
+    ISNULL(S.Bonus, 0) AS Bonus_ISNULL,
+    COALESCE(S.Bonus, 0) AS Bonus_COALESCE
+FROM Employees E
+JOIN Salaries S ON E.EmployeeID = S.EmployeeID;
+GO
+
+-- 4. STRING_AGG: List skills per employee (if supported)
+-- SQL Server 2017+
+SELECT E.Name, STRING_AGG(S.SkillName, ', ') AS SkillList
+FROM Employees E
+JOIN EmployeeSkills ES ON E.EmployeeID = ES.EmployeeID
+JOIN Skills S ON ES.SkillID = S.SkillID
+GROUP BY E.Name;
+GO
+
+-- ========================
+-- Advanced Examples
+-- ========================
+
+-- 5. Window Frame: Running total of bonuses
+SELECT 
+    E.Name,
+    S.Bonus,
+    SUM(S.Bonus) OVER (ORDER BY E.EmployeeID ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS RunningTotal
+FROM Employees E
+JOIN Salaries S ON E.EmployeeID = S.EmployeeID;
+GO
+
+-- 6. LEAD and LAG: Compare salaries between neighbors
+SELECT 
+    E.Name,
+    S.BaseSalary,
+    LAG(S.BaseSalary) OVER (ORDER BY S.BaseSalary) AS PrevSalary,
+    LEAD(S.BaseSalary) OVER (ORDER BY S.BaseSalary) AS NextSalary
+FROM Employees E
+JOIN Salaries S ON E.EmployeeID = S.EmployeeID;
+GO
+
+-- 7. Common Table Expression with Window Function: Top 1 salary per department
+WITH RankedSalaries AS (
+    SELECT 
+        E.Name,
+        E.DepartmentID,
+        S.BaseSalary,
+        RANK() OVER (PARTITION BY E.DepartmentID ORDER BY S.BaseSalary DESC) AS RankInDept
+    FROM Employees E
+    JOIN Salaries S ON E.EmployeeID = S.EmployeeID
+)
+SELECT * FROM RankedSalaries WHERE RankInDept = 1;
+GO
+
+-- 8. MERGE: Update or insert salary
+MERGE Salaries AS target
+USING (SELECT 1 AS EmployeeID, 70000 AS BaseSalary, 5000 AS Bonus) AS source
+ON target.EmployeeID = source.EmployeeID
+WHEN MATCHED THEN 
+    UPDATE SET BaseSalary = source.BaseSalary, Bonus = source.Bonus
+WHEN NOT MATCHED THEN
+    INSERT (EmployeeID, BaseSalary, Bonus)
+    VALUES (source.EmployeeID, source.BaseSalary, source.Bonus);
+GO
+
+-- 9. TRY...CATCH: Error handling on salary update
+BEGIN TRY
+    UPDATE Salaries SET BaseSalary = BaseSalary / 0 WHERE EmployeeID = 1;
+END TRY
+BEGIN CATCH
+    SELECT ERROR_MESSAGE() AS ErrorMsg;
+END CATCH;
+GO
+
+-- 10. CROSS APPLY: Most recent attendance per employee
+SELECT E.Name, A.CheckIn, A.CheckOut
+FROM Employees E
+CROSS APPLY (
+    SELECT TOP 1 CheckIn, CheckOut
+    FROM Attendance A
+    WHERE A.EmployeeID = E.EmployeeID
+    ORDER BY CheckIn DESC
+) A;
+GO
